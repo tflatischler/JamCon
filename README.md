@@ -84,7 +84,7 @@ you have to import it:
 ```python
 from mapper import apply_mapping_multi
 ```
-After that you have to create two files, main.py and mapper.py in /joycontrol:
+To do that, you have to create two files, main.py and mapper.py in /joycontrol:
 ```python
 #main.py
 

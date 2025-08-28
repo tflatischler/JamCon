@@ -1,3 +1,4 @@
+#copy this file into /joycontrol
 from joycontrol.controller import JoyConController
 
 

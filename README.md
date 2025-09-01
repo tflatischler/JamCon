@@ -4,7 +4,8 @@ It allows mapping and remapping of Joy-Con inputs using joycontrol
  by mart1nro.
 This is just for fun and educational purposes.
 
-This Repo is work in progress. 
+# This Repo is a work in progress. 
+Please keep in mind that some tings mighg not worke like they should. 
 
 # Tools and dependencies
 For listening to BLE PAckages, emulating and mapping Joy-Con Inputs, we will use joycontrol (https://github.com/mart1nro/joycontrol) - written by mart1nro. Beside joycontrol i used 

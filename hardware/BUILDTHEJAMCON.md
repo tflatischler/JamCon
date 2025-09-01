@@ -11,5 +11,5 @@ Hi, this is an extra guide for building the JamCon hdware.
 
 4. about expansion opportunities and the open source capabilities of this project. 
 
-# This Repo is still a Work in progress. 
+# This Repo is still a Work in progress. 🚧
 Please keep in mind that some things might not work like they should. 

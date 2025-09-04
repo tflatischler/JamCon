@@ -14,6 +14,10 @@ Actually its not a guide, rather a blog of way of engineering.
 # The beginnings:
 I had a rough plan, 3D printing a case for all the fragile components and printing a PCB for button input.
 Other hardware i use is a 3D printer, a Raspberry Pi Zero 2 W and some essential tools like screwdrivers and stuff like that.
+First I designed de schematics of my PCB like this:
+<img width="636" height="719" alt="image" src="https://github.com/user-attachments/assets/411194c2-1239-4ff3-a77d-06368590bfbd" />
+
+
 
 # This Repo is still a Work in progress. 🚧
 Please keep in mind that some things might not work like they should. 

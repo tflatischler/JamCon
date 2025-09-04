@@ -20,11 +20,7 @@ First I designed de schematics of my PCB like this:
 
 The PCB should be conected to a Pi Zero 2 W by a little 10 pin connector. 
 
-<img width="636" height="719" alt="image" src="https://github.com/user-attachments/assets/66fdf951-5a10-441f-8579-c7880df69c6d" />
-
-
-
-
+![GetAttachmentThumbnail](https://github.com/user-attachments/assets/d4f40782-692a-4dfd-a774-9ea2d8f781cb)
 
 # This Repo is still a Work in progress. 🚧
 Please keep in mind that some things might not work like they should. 

@@ -5,11 +5,12 @@ It allows mapping and remapping of Joy-Con inputs using joycontrol
 This is just for fun and educational purposes.
 
 # This Repo is a work in progress. 🚧
-Please keep in mind that some tings might not worke like they should. 
+Please keep in mind that some tings might not worke like they should.
 
 # Tools and dependencies
 For listening to BLE PAckages, emulating and mapping Joy-Con Inputs, we will use joycontrol (https://github.com/mart1nro/joycontrol) - written by mart1nro. Beside joycontrol i used 
-python3-pip, python3-dbus, libhidapi-hidraw0, bluetooth, bluez, bluez-tools  and screen
+python3-pip, python3-dbus, libhidapi-hidraw0, bluetooth, bluez, bluez-tools and screen. In terms of hardware i am using a Raspberry Pi Zero 2 W.
+
 
 # Step 1:
 install all requirements with 
@@ -158,6 +159,10 @@ for starting type
 ```bash
 sudo python3 main.py
 ```
+
+# Tips:
+You can also add other BLE-tools like a scanner or something like that. 
+Also make sure to check out the hardware folder! 
 # Legal disclaimer
 This software is provided for educational and research purposes only.
 It does not interact with real Nintendo hardware and should not be used to circumvent, emulate, or interfere with official Nintendo products.

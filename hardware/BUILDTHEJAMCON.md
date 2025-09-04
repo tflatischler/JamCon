@@ -18,7 +18,8 @@ First I designed de schematics of my PCB like this:
 
 <img width="636" height="719" alt="image" src="https://github.com/user-attachments/assets/411194c2-1239-4ff3-a77d-06368590bfbd" />
 
-The PCB should be conected to a Pi Zero 2 W by a little 10 pin connector. 
+Later on I added a little soft power off/on Button on pin 7.
+The PCB should later be conected to a Pi Zero 2 W by a little 10 pin connector. 
 
 ![GetAttachmentThumbnail](https://github.com/user-attachments/assets/d4f40782-692a-4dfd-a774-9ea2d8f781cb)
 

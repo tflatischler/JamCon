@@ -1,0 +1,73 @@
+# JamCon .gitignore
+
+# Hardware Ordner komplett ignorieren
+hardware/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Joycontrol (falls lokal geklont)
+joycontrol/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+
+# OS
+Thumbs.db
+.DS_Store
+.Spotlight-V100
+.Trashes
+
+# Credentials & Config
+*.key
+*.pem
+*.p12
+config.local.py
+secrets.json
+
+# Bluetooth & System
+*.hci
+*.btsnoop

@@ -4,11 +4,11 @@ Ein Projekt zum Emulieren und Remapping von Joy-Con Inputs über einen Raspberry
 
 ## 🎮 Features
 
-- ✅ Emuliert Pro Controller oder Joy-Cons über Bluetooth
-- ✅ Flexibles Button-Mapping System
-- ✅ Unterstützung für mehrere Controller gleichzeitig
-- ✅ Erweiterte Funktionen (Button-Combos, Invertierung)
-- ✅ Einfache Konfiguration über Python
+- Emuliert Pro Controller oder Joy-Cons über Bluetooth
+- Flexibles Button-Mapping System
+- Unterstützung für mehrere Controller gleichzeitig
+- Erweiterte Funktionen (Button-Combos, Invertierung)
+- Einfache Konfiguration über Python
 
 ## 📋 Voraussetzungen
 

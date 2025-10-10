@@ -213,6 +213,8 @@ async def main():
 
 ## ⚠️ Hinweise
 
+### Dieses Projekt ist noch in Entwicklung
+
 - Dieses Projekt ist nur für **Bildungs- und Forschungszwecke**
 - Verwende es nicht für unfaire Vorteile in Online-Spielen
 - Der Autor übernimmt keine Haftung für Missbrauch
@@ -229,4 +231,4 @@ Nur für Bildungs- und Forschungszwecke. Nicht für kommerzielle Nutzung.
 ## 🔗 Links
 
 - [Joycontrol Dokumentation](https://github.com/mart1nro/joycontrol)
-- [Nintendo Switch Hacking Community](https://gbatemp.net/)
+- 

@@ -1,181 +1,232 @@
-# JamCon
-A project for experimenting with a BLE proxy device for Joy-Cons.
-It allows mapping and remapping of Joy-Con inputs using joycontrol
- by mart1nro.
-This is just for fun and educational purposes.
+# JamCon - Joy-Con BLE Proxy mit Button-Mapping
 
-# This Repo is a work in progress. 🚧
-Please keep in mind that some tings might not worke like they should.
+Ein Projekt zum Emulieren und Remapping von Joy-Con Inputs über einen Raspberry Pi.
 
-# Tools and dependencies
-For listening to BLE PAckages, emulating and mapping Joy-Con Inputs, we will use joycontrol (https://github.com/mart1nro/joycontrol) - written by mart1nro. Beside joycontrol i used 
-python3-pip, python3-dbus, libhidapi-hidraw0, bluetooth, bluez, bluez-tools and screen. In terms of hardware i am using a Raspberry Pi Zero 2 W.
+## 🎮 Features
 
+- ✅ Emuliert Pro Controller oder Joy-Cons über Bluetooth
+- ✅ Flexibles Button-Mapping System
+- ✅ Unterstützung für mehrere Controller gleichzeitig
+- ✅ Erweiterte Funktionen (Button-Combos, Invertierung)
+- ✅ Einfache Konfiguration über Python
 
-# Step 1:
-install all requirements with 
+## 📋 Voraussetzungen
+
+### Hardware
+- Raspberry Pi (getestet mit Pi Zero 2 W)
+- Bluetooth 4.0+ Unterstützung
+- Nintendo Switch
+
+### Software
+- Raspberry Pi OS (Bullseye oder neuer)
+- Python 3.7+
+- Root-Zugriff
+
+## 🚀 Installation
+
+### Schnellinstallation
+
 ```bash
+# Repository klonen
+git clone https://github.com/tflatischler/JamCon.git
+cd JamCon
+
+# Setup-Script ausführen (als root)
+sudo bash setup.sh
+```
+
+### Manuelle Installation
+
+```bash
+# System-Pakete
+sudo apt-get update
+sudo apt-get install -y python3 python3-pip python3-dbus \
+    libhidapi-hidraw0 bluetooth bluez bluez-tools git
+
+# Joycontrol installieren
 git clone https://github.com/mart1nro/joycontrol.git
 cd joycontrol
 pip3 install -r requirements.txt
 sudo python3 setup.py install
-```
-make shure to run as root.
+cd ..
 
-# Step 2:
-open the joycontroll folder with
-```bash
-cd /joycontrol
-```
-then edit controller.py with
-```bash
-sudo nano controller.py
-```
-There is a function in the file that records the raw buttons from the Joy-Con – often 
-```python
-update_inputs()
-
-set_button_state()
-```
- or similar.
-Then you have to paste in this mapping logic on the lower- or upper end of the file: 
-```python
-# ----------------------------
-# Mapping for 3 Joy-Cons
-# ----------------------------
-def apply_mapping_multi(button_state, controller_name):
-    """
-    button_state: dict mit allen Buttons, z.B. {'A': True, 'B': False, ...}
-    controller_name: 'jc_left', 'jc_right', 'jc_extra'
-    """
-
-    mapped_state = button_state.copy()
-
-    # --- left (jc_left) ---
-    if controller_name == 'jc_left':
-        # sample: A -> X, B -> Y
-        if mapped_state.get('A', False):
-            mapped_state['X'] = True
-            mapped_state['A'] = False
-        if mapped_state.get('B', False):
-            mapped_state['Y'] = True
-            mapped_state['B'] = False
-
-    # --- right (jc_right) ---
-    elif controller_name == 'jc_right':
-        # sample: A -> B, X -> Y
-        if mapped_state.get('A', False):
-            mapped_state['B'] = True
-            mapped_state['A'] = False
-        if mapped_state.get('X', False):
-            mapped_state['Y'] = True
-            mapped_state['X'] = False
-
-    # --- extra right (jc_extra) ---
-    elif controller_name == 'jc_extra':
-        # sample: invert all buttons
-        for btn in mapped_state.keys():
-            mapped_state[btn] = not mapped_state[btn]
-
-    return mapped_state
-```
-(This sample is for 3 Controllers, one left and two right.
-You can edit this by deleting or pasting this Block in the function)
-```python
-#this Block maps A to B and X to Y
- # --- left/right (left/right) ---
-    elif controller_name == 'jc_right': #for left write 'jc_left'
-        # sample: A -> B, X -> Y        #extra mapping
-        if mapped_state.get('A', False):
-            mapped_state['B'] = True
-            mapped_state['A'] = False
-        if mapped_state.get('X', False):
-            mapped_state['Y'] = True
-            mapped_state['X'] = False
-
-#or
-
- # --- extra left/right (jc_extra) ---
-    elif controller_name == 'jc_extra':
-        # sample: invert all buttons
-        for btn in mapped_state.keys():
-            mapped_state[btn] = not mapped_state[btn]
-```
-IMPORTANT: if you extend the script for more or less controllers, you also have to change that in mapper.py
-
-When you have done that, you have to edit the class update_inputs() (or similar) like that: 
-```python
-def update_inputs(self, raw_button_state):
-    mapped_state = apply_mapping_multi(raw_button_state, self.controller_name)
-    self.send_report(mapped_state)
-```
-IMPORTANT:
-apply_mapping_multi has to be definied in another file (mapper.py),
-you have to import it:
-```python
-from mapper import apply_mapping_multi
-```
-To do that, you have to create two files, main.py and mapper.py in /joycontrol:
-```python
-#main.py
-from joycontrol.controller import JoyConController
-
-# Controller-Instanzen erzeugen
-jc_left = JoyConController('jc_left')
-jc_right = JoyConController('jc_right')
-jc_extra = JoyConController('jc_extra')
-
-# Hauptschleife (Joycontrol intern kümmert sich um BLE & Switch)
-while True:
-    # Hier werden normalerweise interne Updates gemacht
-    jc_left.update_inputs(jc_left.get_raw_buttons())
-    jc_right.update_inputs(jc_right.get_raw_buttons())
-    jc_extra.update_inputs(jc_extra.get_raw_buttons())
+# Python-Abhängigkeiten
+pip3 install hid aioconsole crc8
 ```
 
-```python
-#mapper.py
-def apply_mapping_multi(raw_button_state, controller_name):
-    mapping = {
-        "jc_left": {"A": "X"},      # Beispiel: linker JoyCon -> A wird X
-        "jc_right": {"B": "Y"},     # rechter JoyCon -> B wird Y
-        "jc_extra": {"L": "R"},     # dritter JoyCon -> L wird R
-    }
-
-    mapped_state = raw_button_state.copy()
-
-    # Nur wenn für diesen Controller eine Regel existiert
-    if controller_name in mapping:
-        for src, dst in mapping[controller_name].items():
-            if raw_button_state.get(src, False):
-                mapped_state[dst] = True
-                mapped_state[src] = False
-
-    return mapped_state
+## 📁 Projektstruktur
 
 ```
-# Step 3: 
-for starting type 
+JamCon/
+├── main.py          # Hauptprogramm
+├── mapper.py        # Button-Mapping Logik
+├── setup.sh         # Installations-Script
+├── README.md        # Diese Datei
+└── hardware/        # Hardware-Anleitungen (optional)
+```
+
+## 🎯 Verwendung
+
+### 1. Switch in Pairing-Modus versetzen
+
+Auf der Nintendo Switch:
+- **System** → **Controller** → **Controller-Verbindung ändern**
+
+### 2. JamCon starten
+
 ```bash
 sudo python3 main.py
 ```
 
-# Tips:
-You can also add other BLE-tools like a scanner or something like that. 
-Also make sure to check out the hardware folder! 
-# Legal disclaimer
-This software is provided for educational and research purposes only.
-It does not interact with real Nintendo hardware and should not be used to circumvent, emulate, or interfere with official Nintendo products.
-The author(s) assume no liability for misuse of this project.
+### 3. Controller sollte automatisch verbinden
 
+Die Switch sollte den emulierten Controller erkennen.
 
+## ⚙️ Konfiguration
 
+### Button-Mappings anpassen
 
+Bearbeite `mapper.py` und passe die `MAPPING_PROFILES` an:
 
+```python
+MAPPING_PROFILES = {
+    'jc_main': {
+        'a': 'b',      # A-Button wird zu B
+        'x': 'y',      # X-Button wird zu Y
+        # Weitere Mappings...
+    }
+}
+```
 
+### Verfügbare Buttons
 
- 
+```
+Face Buttons:  a, b, x, y
+Shoulder:      l, r, zl, zr
+D-Pad:         up, down, left, right
+System:        plus, minus, home, capture
+```
 
+### Verschiedene Controller-Typen
 
+In `main.py` kannst du den Controller-Typ ändern:
 
- 
+```python
+# Pro Controller (empfohlen)
+controller = JamConController('jc_main', 'PRO_CONTROLLER')
+
+# Linker Joy-Con
+controller = JamConController('jc_left', 'JOYCON_L')
+
+# Rechter Joy-Con
+controller = JamConController('jc_right', 'JOYCON_R')
+```
+
+## 🔧 Erweiterte Funktionen
+
+### Custom Mapping zur Laufzeit
+
+```python
+# In main.py nach controller.start():
+controller.mapper.set_mapping('a', 'x')
+controller.mapper.set_mapping('b', 'y')
+```
+
+### Button-Kombos
+
+```python
+from mapper import AdvancedButtonMapper
+
+# Verwende den erweiterten Mapper
+controller = JamConController('jc_main', 'PRO_CONTROLLER')
+controller.mapper = AdvancedButtonMapper('jc_main')
+
+# A+B zusammen = X
+controller.mapper.add_combo_mapping(('a', 'b'), 'x')
+```
+
+### Button-Invertierung
+
+```python
+# L-Button invertieren (gedrückt = nicht gedrückt)
+controller.mapper.set_inverted('l', True)
+```
+
+## 🐛 Troubleshooting
+
+### Controller verbindet nicht
+
+```bash
+# Bluetooth-Status prüfen
+sudo systemctl status bluetooth
+
+# Bluetooth neustarten
+sudo systemctl restart bluetooth
+sudo hciconfig hci0 up
+sudo hciconfig hci0 piscan
+```
+
+### Keine Root-Rechte
+
+JamCon benötigt Root-Rechte für Bluetooth:
+
+```bash
+sudo python3 main.py
+```
+
+### Import-Fehler
+
+```bash
+# Joycontrol neu installieren
+cd joycontrol
+sudo python3 setup.py install
+```
+
+### Verbindung bricht ab
+
+- Stelle sicher, dass die Switch in Reichweite ist
+- Prüfe ob andere Bluetooth-Geräte stören
+- Teste mit einem anderen Bluetooth-Dongle
+
+## 📚 Mehrere Controller
+
+Du kannst mehrere Controller gleichzeitig emulieren:
+
+```python
+import asyncio
+
+async def main():
+    # Zwei Controller erstellen
+    controller1 = JamConController('jc_left', 'JOYCON_L')
+    controller2 = JamConController('jc_right', 'JOYCON_R')
+    
+    # Beide verbinden
+    await controller1.start()
+    await controller2.start()
+    
+    # Parallel laufen lassen
+    await asyncio.gather(
+        controller1.run_input_loop(),
+        controller2.run_input_loop()
+    )
+```
+
+## ⚠️ Hinweise
+
+- Dieses Projekt ist nur für **Bildungs- und Forschungszwecke**
+- Verwende es nicht für unfaire Vorteile in Online-Spielen
+- Der Autor übernimmt keine Haftung für Missbrauch
+
+## 🤝 Danksagungen
+
+- [joycontrol](https://github.com/mart1nro/joycontrol) von mart1nro
+- Nintendo Switch Reverse-Engineering Community
+
+## 📄 Lizenz
+
+Nur für Bildungs- und Forschungszwecke. Nicht für kommerzielle Nutzung.
+
+## 🔗 Links
+
+- [Joycontrol Dokumentation](https://github.com/mart1nro/joycontrol)
+- [Nintendo Switch Hacking Community](https://gbatemp.net/)

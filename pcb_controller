@@ -1,0 +1,302 @@
+#!/usr/bin/env python3
+"""
+PCB Controller Module
+Handles input from custom 4-button arrow PCB via 10-pin FPC connector
+"""
+
+import asyncio
+import logging
+from typing import Callable, Optional, Set
+from dataclasses import dataclass
+from enum import Enum
+import time
+
+try:
+    import RPi.GPIO as GPIO
+except ImportError:
+    # Fallback for testing on non-Pi systems
+    class MockGPIO:
+        BCM = 'BCM'
+        IN = 'IN'
+        PUD_UP = 'PUD_UP'
+        RISING = 'RISING'
+        FALLING = 'FALLING'
+        
+        @staticmethod
+        def setmode(mode): pass
+        @staticmethod
+        def setup(pin, mode, pull_up_down=None): pass
+        @staticmethod
+        def input(pin): return False
+        @staticmethod
+        def add_event_detect(pin, edge, callback=None, bouncetime=None): pass
+        @staticmethod
+        def cleanup(): pass
+    
+    GPIO = MockGPIO()
+
+logger = logging.getLogger(__name__)
+
+
+class ButtonState(Enum):
+    """Button press states"""
+    RELEASED = 0
+    PRESSED = 1
+    HELD = 2
+
+
+@dataclass
+class PCBEvent:
+    """Represents a PCB button event"""
+    button: str  # 'UP', 'DOWN', 'LEFT', 'RIGHT', or combination like 'LEFT+DOWN'
+    state: ButtonState
+    timestamp: float
+    hold_time: float = 0.0
+
+
+class PCBController:
+    """Manages PCB button input via GPIO"""
+    
+    # Hold time thresholds
+    HOLD_THRESHOLD = 0.5  # seconds for "held" state
+    COMBO_THRESHOLD = 0.3  # seconds for combination detection
+    DEBOUNCE_TIME = 50  # milliseconds
+    
+    def __init__(self, up_pin: int = 17, down_pin: int = 27, 
+                 left_pin: int = 22, right_pin: int = 23):
+        """
+        Initialize PCB controller
+        
+        Args:
+            up_pin: GPIO pin for UP button
+            down_pin: GPIO pin for DOWN button
+            left_pin: GPIO pin for LEFT button
+            right_pin: GPIO pin for RIGHT button
+        """
+        self.pins = {
+            'UP': up_pin,
+            'DOWN': down_pin,
+            'LEFT': left_pin,
+            'RIGHT': right_pin
+        }
+        
+        self.button_states: dict[str, ButtonState] = {
+            btn: ButtonState.RELEASED for btn in self.pins.keys()
+        }
+        
+        self.press_times: dict[str, float] = {}
+        self.callbacks: list[Callable] = []
+        self.running = False
+        self.pressed_buttons: Set[str] = set()
+        
+        logger.info(f"PCB Controller initialized with pins: {self.pins}")
+    
+    async def start(self):
+        """Initialize GPIO and start monitoring"""
+        logger.info("Starting PCB controller...")
+        
+        try:
+            # Setup GPIO
+            GPIO.setmode(GPIO.BCM)
+            
+            for button, pin in self.pins.items():
+                # Setup as input with pull-up (button pulls to ground when pressed)
+                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                logger.debug(f"Configured {button} on GPIO {pin}")
+            
+            self.running = True
+            
+            # Start monitoring task
+            asyncio.create_task(self._monitor_buttons())
+            
+            logger.info("PCB controller started successfully")
+            
+        except Exception as e:
+            logger.error(f"Error starting PCB controller: {e}")
+            raise
+    
+    async def stop(self):
+        """Stop monitoring and cleanup GPIO"""
+        logger.info("Stopping PCB controller...")
+        self.running = False
+        
+        try:
+            GPIO.cleanup()
+            logger.info("GPIO cleanup complete")
+        except Exception as e:
+            logger.error(f"Error during GPIO cleanup: {e}")
+    
+    def register_callback(self, callback: Callable):
+        """
+        Register a callback function for button events
+        
+        Args:
+            callback: Async function that takes PCBEvent as argument
+        """
+        self.callbacks.append(callback)
+        logger.debug(f"Registered callback: {callback.__name__}")
+    
+    async def _monitor_buttons(self):
+        """Main button monitoring loop"""
+        logger.info("Button monitoring started")
+        
+        while self.running:
+            try:
+                current_time = time.time()
+                
+                # Check each button
+                for button, pin in self.pins.items():
+                    # Read GPIO (False = pressed due to pull-up)
+                    is_pressed = not GPIO.input(pin)
+                    
+                    await self._handle_button_state(button, is_pressed, current_time)
+                
+                # Check for button combinations
+                await self._check_combinations(current_time)
+                
+                # Small delay to prevent CPU hammering
+                await asyncio.sleep(0.01)
+                
+            except Exception as e:
+                logger.error(f"Error in button monitoring: {e}")
+                await asyncio.sleep(0.1)
+    
+    async def _handle_button_state(self, button: str, is_pressed: bool, current_time: float):
+        """Handle state changes for a single button"""
+        
+        current_state = self.button_states[button]
+        
+        if is_pressed:
+            if current_state == ButtonState.RELEASED:
+                # Button just pressed
+                self.button_states[button] = ButtonState.PRESSED
+                self.press_times[button] = current_time
+                self.pressed_buttons.add(button)
+                
+                event = PCBEvent(
+                    button=button,
+                    state=ButtonState.PRESSED,
+                    timestamp=current_time
+                )
+                
+                logger.debug(f"Button {button} pressed")
+                await self._fire_event(event)
+            
+            elif current_state == ButtonState.PRESSED:
+                # Check if held long enough
+                hold_time = current_time - self.press_times[button]
+                if hold_time >= self.HOLD_THRESHOLD:
+                    self.button_states[button] = ButtonState.HELD
+                    
+                    event = PCBEvent(
+                        button=button,
+                        state=ButtonState.HELD,
+                        timestamp=current_time,
+                        hold_time=hold_time
+                    )
+                    
+                    logger.debug(f"Button {button} held ({hold_time:.2f}s)")
+                    await self._fire_event(event)
+        
+        else:
+            if current_state != ButtonState.RELEASED:
+                # Button released
+                hold_time = 0
+                if button in self.press_times:
+                    hold_time = current_time - self.press_times[button]
+                
+                self.button_states[button] = ButtonState.RELEASED
+                self.pressed_buttons.discard(button)
+                
+                event = PCBEvent(
+                    button=button,
+                    state=ButtonState.RELEASED,
+                    timestamp=current_time,
+                    hold_time=hold_time
+                )
+                
+                logger.debug(f"Button {button} released")
+                await self._fire_event(event)
+    
+    async def _check_combinations(self, current_time: float):
+        """Check for button combinations being pressed"""
+        
+        if len(self.pressed_buttons) < 2:
+            return
+        
+        # Check for specific combinations
+        combo_patterns = [
+            {'LEFT', 'DOWN'},  # Re-pair combination
+            {'UP', 'RIGHT'},   # Could be used for future features
+        ]
+        
+        for pattern in combo_patterns:
+            if pattern.issubset(self.pressed_buttons):
+                combo_name = '+'.join(sorted(pattern))
+                
+                # Check if all buttons in combo have been pressed long enough
+                min_hold_time = min(
+                    current_time - self.press_times[btn] 
+                    for btn in pattern 
+                    if btn in self.press_times
+                )
+                
+                if min_hold_time >= self.COMBO_THRESHOLD:
+                    event = PCBEvent(
+                        button=combo_name,
+                        state=ButtonState.HELD,
+                        timestamp=current_time,
+                        hold_time=min_hold_time
+                    )
+                    
+                    logger.debug(f"Combo {combo_name} detected ({min_hold_time:.2f}s)")
+                    await self._fire_event(event)
+    
+    async def _fire_event(self, event: PCBEvent):
+        """Fire event to all registered callbacks"""
+        
+        for callback in self.callbacks:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(event)
+                else:
+                    callback(event)
+            except Exception as e:
+                logger.error(f"Error in callback {callback.__name__}: {e}")
+    
+    def get_button_state(self, button: str) -> ButtonState:
+        """Get current state of a button"""
+        return self.button_states.get(button, ButtonState.RELEASED)
+    
+    def is_pressed(self, button: str) -> bool:
+        """Check if a button is currently pressed"""
+        return self.button_states.get(button) != ButtonState.RELEASED
+
+
+# Test function for standalone testing
+async def test_pcb_controller():
+    """Test the PCB controller"""
+    logger.info("PCB Controller Test Mode")
+    
+    async def print_event(event: PCBEvent):
+        print(f"Event: {event.button} - {event.state.name} - Hold: {event.hold_time:.2f}s")
+    
+    controller = PCBController()
+    controller.register_callback(print_event)
+    
+    await controller.start()
+    
+    print("Press PCB buttons to test. Ctrl+C to exit.")
+    
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("\nExiting...")
+    finally:
+        await controller.stop()
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+    asyncio.run(test_pcb_controller())

@@ -1,55 +1,93 @@
 #!/bin/bash
+#
 # JamCon Setup Script
-# Installiert alle Abhängigkeiten und richtet das Projekt ein
+# Automated installation for Raspberry Pi Zero 2 W
+#
 
-set -e  # Bei Fehler abbrechen
+set -e  # Exit on error
 
-echo "================================"
-echo "JamCon Installation"
-echo "================================"
+# Colours for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Colour
 
-# Prüfen ob als root ausgeführt
+echo -e "${GREEN}"
+echo "======================================"
+echo "  JamCon - Joy-Con Proxy Device"
+echo "  Installation Script"
+echo "======================================"
+echo -e "${NC}"
+
+# Check if running as root
 if [ "$EUID" -ne 0 ]; then 
-    echo "Bitte als root ausführen: sudo bash setup.sh"
+    echo -e "${RED}ERROR: This script must be run as root${NC}"
+    echo "Please run: sudo bash setup.sh"
     exit 1
 fi
 
-# System-Pakete aktualisieren
-echo ""
-echo "[1/5] System aktualisieren..."
+# Check if running on Raspberry Pi
+if [ ! -f /proc/device-tree/model ]; then
+    echo -e "${YELLOW}WARNING: This doesn't appear to be a Raspberry Pi${NC}"
+    read -p "Continue anyway? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
+
+echo -e "${GREEN}[1/8] Updating system packages...${NC}"
 apt-get update
 apt-get upgrade -y
 
-# Abhängigkeiten installieren
-echo ""
-echo "[2/5] Abhängigkeiten installieren..."
+echo -e "${GREEN}[2/8] Installing system dependencies...${NC}"
 apt-get install -y \
     python3 \
     python3-pip \
-    python3-dev \
     python3-dbus \
+    python3-dev \
     libhidapi-hidraw0 \
+    libhidapi-dev \
     bluetooth \
     bluez \
     bluez-tools \
-    git
+    git \
+    build-essential \
+    libbluetooth-dev
 
-# Python-Pakete installieren
-echo ""
-echo "[3/5] Python-Pakete installieren..."
+echo -e "${GREEN}[3/8] Configuring Bluetooth...${NC}"
+# Enable Bluetooth
+systemctl enable bluetooth
+systemctl start bluetooth
+
+# Configure Bluetooth to be discoverable
+hciconfig hci0 up
+hciconfig hci0 piscan
+
+# Add user to bluetooth group
+if [ -n "$SUDO_USER" ]; then
+    usermod -a -G bluetooth $SUDO_USER
+    echo -e "${GREEN}Added $SUDO_USER to bluetooth group${NC}"
+fi
+
+echo -e "${GREEN}[4/8] Installing Python dependencies...${NC}"
 pip3 install --upgrade pip
-pip3 install hid aioconsole crc8
 
-# Joycontrol klonen und installieren
-echo ""
-echo "[4/5] Joycontrol installieren..."
+# Core dependencies
+pip3 install \
+    aioconsole \
+    hid \
+    crc8 \
+    RPi.GPIO
 
+echo -e "${GREEN}[5/8] Installing joycontrol...${NC}"
 if [ -d "joycontrol" ]; then
-    echo "Joycontrol bereits vorhanden, wird aktualisiert..."
+    echo "joycontrol directory exists, updating..."
     cd joycontrol
     git pull
     cd ..
 else
+    echo "Cloning joycontrol..."
     git clone https://github.com/mart1nro/joycontrol.git
 fi
 
@@ -58,28 +96,102 @@ pip3 install -r requirements.txt
 python3 setup.py install
 cd ..
 
-# Bluetooth-Service konfigurieren
-echo ""
-echo "[5/5] Bluetooth konfigurieren..."
+echo -e "${GREEN}[6/8] Setting up GPIO permissions...${NC}"
+# Add user to gpio group
+if [ -n "$SUDO_USER" ]; then
+    usermod -a -G gpio $SUDO_USER
+fi
 
-# Bluetooth-Service neustarten
-systemctl stop bluetooth
-systemctl start bluetooth
+# Create udev rule for GPIO access
+cat > /etc/udev/rules.d/99-gpio.rules << EOF
+SUBSYSTEM=="gpio", KERNEL=="gpiochip*", ACTION=="add", PROGRAM="/bin/sh -c 'chown root:gpio /sys/class/gpio/export /sys/class/gpio/unexport ; chmod 220 /sys/class/gpio/export /sys/class/gpio/unexport'"
+SUBSYSTEM=="gpio", KERNEL=="gpio*", ACTION=="add", PROGRAM="/bin/sh -c 'chown root:gpio /sys%p/active_low /sys%p/direction /sys%p/edge /sys%p/value ; chmod 660 /sys%p/active_low /sys%p/direction /sys%p/edge /sys%p/value'"
+EOF
 
-# Bluetooth in Pairing-Modus setzen
-hciconfig hci0 up
-hciconfig hci0 piscan
+udevadm control --reload-rules
+udevadm trigger
 
-echo ""
-echo "================================"
-echo "Installation abgeschlossen!"
-echo "================================"
-echo ""
-echo "Nächste Schritte:"
-echo "1. Erstelle die Dateien main.py und mapper.py im aktuellen Verzeichnis"
-echo "2. Passe die Button-Mappings in mapper.py an"
-echo "3. Starte mit: sudo python3 main.py"
-echo ""
-echo "Die Nintendo Switch sollte im Controller-Pairing-Modus sein:"
-echo "System -> Controller -> Controller-Verbindung ändern"
-echo ""
+echo -e "${GREEN}[7/8] Creating systemd service (optional)...${NC}"
+cat > /etc/systemd/system/jamcon.service << EOF
+[Unit]
+Description=JamCon Joy-Con Proxy Device
+After=network.target bluetooth.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$(pwd)
+ExecStart=/usr/bin/python3 $(pwd)/main.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo -e "${YELLOW}Systemd service created but not enabled.${NC}"
+echo -e "${YELLOW}To enable auto-start on boot: sudo systemctl enable jamcon${NC}"
+
+echo -e "${GREEN}[8/8] Verifying installation...${NC}"
+
+# Check Python version
+PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+echo "Python version: $PYTHON_VERSION"
+
+# Check if required modules are importable
+python3 << EOF
+import sys
+modules = ['RPi.GPIO', 'hid', 'crc8', 'aioconsole']
+missing = []
+
+for module in modules:
+    try:
+        __import__(module)
+        print(f"✓ {module} installed")
+    except ImportError:
+        print(f"✗ {module} MISSING")
+        missing.append(module)
+
+if missing:
+    print(f"\nERROR: Missing modules: {', '.join(missing)}")
+    sys.exit(1)
+EOF
+
+# Check Bluetooth status
+if systemctl is-active --quiet bluetooth; then
+    echo "✓ Bluetooth service running"
+else
+    echo -e "${RED}✗ Bluetooth service not running${NC}"
+fi
+
+# Check GPIO access
+if [ -e /dev/gpiomem ]; then
+    echo "✓ GPIO accessible"
+else
+    echo -e "${YELLOW}⚠ GPIO may not be accessible${NC}"
+fi
+
+echo
+echo -e "${GREEN}======================================"
+echo "  Installation Complete!"
+echo "======================================"
+echo -e "${NC}"
+
+echo -e "${YELLOW}Next steps:${NC}"
+echo "1. Connect your PCB board via FPC connector"
+echo "2. Power on your Joy-Cons"
+echo "3. Run: sudo python3 main.py"
+echo
+echo -e "${YELLOW}Optional:${NC}"
+echo "• Enable auto-start: sudo systemctl enable jamcon"
+echo "• Start service now: sudo systemctl start jamcon"
+echo "• View logs: sudo journalctl -u jamcon -f"
+echo
+echo -e "${YELLOW}Troubleshooting:${NC}"
+echo "• Bluetooth issues: sudo systemctl restart bluetooth"
+echo "• GPIO test: gpio readall"
+echo "• Check Joy-Con pairing: bluetoothctl devices"
+echo
+echo -e "${GREEN}Ready to use! Enjoy your JamCon proxy device!${NC}"
